@@ -1,0 +1,157 @@
+#
+# Config file for test script
+#
+
+queryClasses:
+
+  LV:
+    concurrentQueries: 80  # how many concurrent queries to run
+    targetTime: 10s  # not really used
+    maxRate: 100  # maximum query submission rate, Hz
+    arraysize: 1000
+
+  FTSObj:
+    concurrentQueries: 12
+    targetTimeSec: 1h
+    maxRate: null  # null means no limit, it is default
+    arraysize: null  # null means default
+
+  FTSSrc:
+    concurrentQueries: 3
+    targetTimeSec: 12h
+
+  FTSFSrc:
+    concurrentQueries: 3
+    targetTimeSec: 12h
+
+  joinObjSrc:
+    concurrentQueries: 6
+    targetTimeSec: 12h
+
+  joinObjFSrc:
+    concurrentQueries: 3
+    targetTimeSec: 12h
+
+  nearN:
+    concurrentQueries: 3
+    targetTimeSec: 1h
+
+queries:
+
+  LV:
+    # key (q1) is an identifier, for monitoring purposes
+    q1:
+      template: >
+        SELECT psRa, psDecl, psRaErr, psDeclErr, uPsFlux, uPsFluxErr, uKronFlux
+        FROM Object
+        WHERE objectId = {objectId}
+      variables:
+        objectId:
+          path: /path/to/file.txt
+          mode: random
+    q2:
+      template: >
+        SELECT psRa, psDecl, psRaErr, psDeclErr, uPsFlux, uPsFluxErr, uKronFlux
+        FROM Object
+        WHERE scisql_s2PtInBox(psRa, psDecl, {raMin}, {declMin}, {raMin}+{raDist}, {declMin}+{declDist})=1
+      variables:
+        raMin: {distribution: uniform, min: 0, max: 350}
+        declMin: {distribution: uniform, min: -87, max: 45}
+        raDist: {distribution: uniform, min: 0.01, max: 0.2}
+        declDist: {distribution: uniform, min: 0.01, max: 0.2}
+    q3:
+      template: >
+        SELECT o.objectId  AS o_objectId,
+               o.psRa      AS o_psRa,
+               o.psDecl    AS o_psDecl,
+               s.sourceId  AS s_sourceId,
+               s.psRa      AS s_psRa,
+               s.psDecl    AS s_psDecl,
+               s.psFlux    AS s_psFlux,
+               s.psFluxErr AS s_psFluxErr
+        FROM Object o, Source s
+        WHERE scisql_s2PtInBox(o.psRa, o.psDecl, {raMin}, {declMin}, {raMin}+{raDist}, {declMin}+{declDist})=1
+          AND o.objectId = s.objectId
+      variables:
+        raMin: {distribution: uniform, min: 0, max: 350}
+        declMin: {distribution: uniform, min: -87, max: 45}
+        raDist: {distribution: uniform, min: 0.01, max: 0.2}
+        declDist: {distribution: uniform, min: 0.01, max: 0.2}
+
+  FTSObj:
+    #q1: "SELECT COUNT(*) FROM Object WHERE y_instFlux > 0.05"
+    q1: "SELECT COUNT(*) FROM Object WHERE yPsFlux > 0.05"
+
+    #q2: "SELECT psRa, psDecl, yPsFlux, g_psfFlux, r_psfFlux FROM Object WHERE y_shapeIxx BETWEEN 20 AND 40"
+    q2: "SELECT psRa, psDecl, uPsFlux, gPsFlux, rPsFlux FROM Object WHERE y_shapeIxx BETWEEN 20 AND 40"
+
+    #q3: "SELECT COUNT(*) FROM Object WHERE y_instFlux > u_instFlux"
+    q3: "SELECT COUNT(*) FROM Object WHERE yPsFlux > uPsFlux"
+
+    q4: "SELECT MIN(psRa), MAX(psRa) FROM Object WHERE psDecl > 3"
+
+    #q5: "SELECT MIN(psRa), MAX(psRa) FROM Object WHERE z_apFlux BETWEEN 1 and 2"
+    q5: "SELECT MIN(psRa), MAX(psRa) FROM Object WHERE zPsFlux BETWEEN 1 and 2"
+
+    q6: "SELECT MIN(psRa), MAX(psRa), MIN(psDecl), MAX(psDecl) FROM Object"
+
+    #q7: "SELECT MIN(psRa), MAX(psRa), MIN(psDecl), MAX(psDecl) FROM Object WHERE z_instFlux < 3"
+    q7: "SELECT MIN(psRa), MAX(psRa), MIN(psDecl), MAX(psDecl) FROM Object WHERE zPsFlux < 3"
+
+    q8: "SELECT COUNT(*) AS n, AVG(psRa), AVG(psDecl), chunkId FROM Object GROUP BY chunkId"
+
+    # q9: "SELECT objectId, u_apFluxSigma FROM Object WHERE u_apFluxSigma between 0 and 0.02",       # 1,889,695,615 rows / ~28 GB
+    # q10: "SELECT objectId, u_apFluxSigma FROM Object WHERE u_apFluxSigma between 0 and 2.27e-30",   #   475,244,843 rows / ~ 7 GB
+    # q11: "SELECT objectId, u_apFluxSigma FROM Object WHERE u_apFluxSigma between 0 and 2e-30",      #    42,021,567 rows / ~ 0.5 GB
+
+    # The number of rows returned by all wueries based on evaluating attribute 'uPsFluxErr'
+    # will be based on what sub-range of the attribute's values will be select out
+    # of the full range of: [0., 0.5]. The heuristic formla for the number of rows would
+    # be:
+    #   N[rows] = N[total.rows] * subrange / ([0., 0.5]).
+    #
+
+    #q12: "SELECT objectId, u_apFluxSigma FROM Object WHERE u_apFluxSigma between 0 and 1.75e-30"    #     1,932,988 rows / ~ 29 MB
+    q12: "SELECT objectId, uPsFluxErr FROM Object WHERE uPsFluxErr between 0 and 1.75e-30"
+
+    #q13: "SELECT objectId, u_apFluxSigma FROM Object WHERE u_apFluxSigma between 0 and 1.8e-30"
+    q13: "SELECT objectId, uPsFluxErr FROM Object WHERE uPsFluxErr between 0 and 1.8e-30"
+
+    #q14: "SELECT objectId, u_apFluxSigma FROM Object WHERE u_apFluxSigma between 0 and 1.81e-30"
+    q14: "SELECT objectId, uPsFluxErr FROM Object WHERE uPsFluxErr between 0 and 1.81e-30"
+
+    #q15: "SELECT objectId, u_apFluxSigma FROM Object WHERE u_apFluxSigma between 0 and 1.5e-30"      # 119,423 rows / ~ 2 MB
+    q15: "SELECT objectId, uPsFluxErr FROM Object WHERE uPsFluxErr between 0 and 1.5e-30"
+
+  FTSSrc:
+    #q1: "SELECT COUNT(*) FROM Source WHERE flux_sinc BETWEEN 1 AND 2"
+    q1: "SELECT COUNT(*) FROM Source WHERE psFlux BETWEEN 1 AND 2"
+
+  FTSFSrc:
+    q1: "SELECT COUNT(*) FROM ForcedSource WHERE psFlux BETWEEN 0.1 AND 0.2"
+
+  joinObjSrc:
+    #q1: "SELECT o.objectId, s.objectId, s.id, o.psRa, o.psDecl FROM Object o, Source s WHERE o.objectId=s.objectId AND s.flux_sinc BETWEEN 0.13 AND 0.14"
+    q1: "SELECT o.objectId, s.objectId, s.id, o.psRa, o.psDecl FROM Object o, Source s WHERE o.objectId=s.objectId AND s.psFlux BETWEEN 0.13 AND 0.14"
+
+    #q2: "SELECT o.objectId, s.objectId, s.id, o.psRa, o.psDecl FROM Object o, Source s WHERE o.objectId=s.objectId AND s.flux_sinc BETWEEN 0.3 AND 0.31"
+    q2: "SELECT o.objectId, s.objectId, s.id, o.psRa, o.psDecl FROM Object o, Source s WHERE o.objectId=s.objectId AND s.psFlux BETWEEN 0.3 AND 0.31"
+
+    #q3: "SELECT o.objectId, s.objectId, s.id, o.psRa, o.psDecl FROM Object o, Source s WHERE o.objectId=s.objectId AND s.flux_sinc BETWEEN 0.7 AND 0.72"
+    q3: "SELECT o.objectId, s.objectId, s.id, o.psRa, o.psDecl FROM Object o, Source s WHERE o.objectId=s.objectId AND s.psFlux BETWEEN 0.7 AND 0.72"
+
+  joinObjFSrc:
+    q1: "SELECT o.objectId, f.psFlux FROM Object o, ForcedSource f WHERE o.objectId=f.objectId AND f.psFlux BETWEEN 0.13 AND 0.14"
+
+  nearN:
+    q1:
+      template: >
+        SELECT COUNT(*)
+        FROM Object o1, Object o2
+        WHERE scisql_s2PtInBox(o1.psRa, o1.psDecl, %f, %f, %f, %f)=1
+          AND scisql_angSep(o1.psRa, o1.psDecl, o2.psRa, o2.psDecl) < 0.015
+      variables:
+        raMin: {distribution: uniform, min: 0, max: 340}
+        declMin: {distribution: uniform, min: -87, max: 40}
+        raDist: {distribution: uniform, min: 8, max: 12}
+        declDist: {distribution: uniform, min: 8, max: 12}
