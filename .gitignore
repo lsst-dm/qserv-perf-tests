@@ -127,3 +127,12 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# LSST-specific artifacts
+config.log
+.coverage
+.sconf_temp/
+.sconsign.dblite
+tests/.tests
+.vscode/
+
