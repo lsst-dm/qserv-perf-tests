@@ -1,7 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env bash
 
-import sys
-
-from lsst.qserv.testing.main import main
-
-sys.exit(main())
+export PYTHONPATH=$(realpath $(dirname "$0")/../)
+python -m lsst.qserv.testing.main "$@"
