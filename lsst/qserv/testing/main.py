@@ -113,7 +113,7 @@ def main():
         connFactory = functools.partial(
             MySQLdb.connect,
             host=args.host,
-            port=args.port,
+            port=int(args.port),
             user=args.user,
             passwd=args.password,
             db=args.db
