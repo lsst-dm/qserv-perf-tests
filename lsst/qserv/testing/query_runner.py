@@ -108,12 +108,23 @@ class QueryRunner:
             # fetch all data, do not fill memory with fetchall(), better
             # to iterate, hopefully it retrieves more than one row a a time
             rows = 42
+            row_size = 0
             while rows:
                 if self._arraysize:
                     rows = cursor.fetchmany(self._arraysize)
                 else:
                     rows = cursor.fetchmany()
-
+                # size is an estimate based on two assumptions: 1) sizes of the transient types
+                # are close to the stored types, and 2) variable types (strings) have the same
+                # size in all rows.
+                if row_size == 0:
+                    if len(rows) != 0:
+                        for col in rows[0]:
+                           if   isinstance(col, bool):  row_size += 1
+                           elif isinstance(col, int):   row_size += (4 + 8) / 2  # averaging int32 & int64
+                           elif isinstance(col, float): row_size += (4 + 8) / 2  # averaging float & double
+                           elif isinstance(col, str):   row_size += len(col)
+                           else:                        row_size += 4
             if self._monitor:
                 self._monitor.add_metrics(
                     "queries",
@@ -127,15 +138,6 @@ class QueryRunner:
             n_rows = cursor.rowcount
 
             t_qend = time.time()
-
-            # size is a guess
-            row_size = 0
-            for column in cursor.description:
-                if column.internal_size is not None:
-                    row_size += column.internal_size
-                else:
-                    # order of magnitude correct for qserv data
-                    row_size + 4
 
             result_size = row_size * n_rows
 
