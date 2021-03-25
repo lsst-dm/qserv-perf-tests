@@ -45,6 +45,94 @@ class _ValueRandomUniform:
         return random.uniform(self._min, self._max)
 
 
+class _IntervalRandomUniform:
+    """Generator for randomly distributed intervals, where both ends are
+       the floating point numbers.
+
+    Parameters
+    ----------
+    minBegin, maxBegin : `float`
+        Ranges for generated begin points of intervals.
+    minLength, maxLength : `float`
+        Ranges for generated interval lengths.
+    """
+    def __init__(self, minBegin, maxBegin, minLength, maxLength):
+        self._genBegin = _ValueRandomUniform(minBegin, maxBegin)
+        self._genLength = _ValueRandomUniform(minLength, maxLength)
+        self._context = None
+        self._begin = None
+        self._end = None
+
+    def begin(self, context):
+        self._generate(context)
+        return self._begin
+
+    def end(self, context):
+        self._generate(context)
+        return self._end
+
+    def _generate(self, context):
+        if self._context != context:
+            self._context = context
+            self._begin = self._genBegin()
+            self._end = self._begin + self._genLength()
+
+
+class _IntervalBeginRandomUniform:
+    """The proxy class to the interval generator for retreiving the begin
+       points of intervals.
+
+    Parameters
+    ----------
+    interval_generator : `_IntervalRandomUniform`
+        Ranges for generated intervals.
+    """
+    def __init__(self, interval_generator):
+        self._gen = interval_generator
+
+    def __call__(self, queryId):
+        return self._gen.begin(queryId)
+
+
+class _IntervalEndRandomUniform:
+    """The proxy class to the interval generator for retreiving the end
+       points of intervals.
+
+    Parameters
+    ----------
+    interval_generator : `_IntervalRandomUniform`
+        Ranges for generated intervals.
+    """
+    def __init__(self, interval_generator):
+        self._gen = interval_generator
+
+    def __call__(self, queryId):
+        return self._gen.end(queryId)
+
+
+def _RandomIntervalGenerator(var, config):
+    """The function to make a pair of the bound generators for both ends
+       of a named interval.
+
+    Parameters
+    ----------
+    var : `str`
+        The name of the interval.
+    config : `dict`
+        The configuration of the generator for the interval.
+    """
+    begin = config["begin"]
+    length = config["length"]
+    if (begin["distribution"] == "uniform") and (length["distribution"] == "uniform"):
+        interval_generator = _IntervalRandomUniform(
+                begin.get("min", 0.), begin.get("max", 1.),
+                length.get("min", 0.), length.get("max", 1.)
+        )
+        return {var + "_begin": _IntervalBeginRandomUniform(interval_generator),
+                var + "_end": _IntervalEndRandomUniform(interval_generator)}
+    raise ValueError(f"Cannot parse variable configuration {var} = {config}")
+
+
 class _ValueRandomUniformInt:
     """Generator for uniformly distributed integer numbers.
 
@@ -82,7 +170,7 @@ class _ValueIntFromFile:
         assert mode in ("random", "sequential")
         self._seq = 0
 
-    def __call__(self):
+    def __call__(self, context=None):
         if self._mode == "random":
             return random.choice(self._array)
         else:
@@ -111,23 +199,20 @@ class QueryFactory:
         if variables is not None:
 
             for var, config in variables.items():
-                generator = None
-                if "distribution" in config:
-                    if config["distribution"] == "uniform":
-                        min = config.get("min", 0.)
-                        max = config.get("max", 1.)
-                        generator = _ValueRandomUniform(min, max)
-                    elif config["distribution"] == "uniform_int":
-                        min = config.get("min", 0)
-                        max = config.get("max", 2**64)
-                        generator = _ValueRandomUniformInt(min, max)
-                elif "path" in config:
-                    path = config["path"]
-                    mode = config.get("mode", "random")
-                    generator = _ValueIntFromFile(path, mode)
-                if generator is None:
+                if "file_source" in config:
+                    path = config["file_source"]["path"]
+                    mode = config["file_source"].get("mode", "random")
+                    self._vars[var] = _ValueIntFromFile(path, mode)
+                elif "random_interval" in config:
+                    # Register two bound generator entries for both ends of an interval.
+                    # Each such entry will be based on the name of a variable appended by "_begin"
+                    # and "_end" respectively.
+                    for key, generator in _RandomIntervalGenerator(var, config["random_interval"]).items():
+                        self._vars[key] = generator
+                else:
                     raise ValueError(f"Cannot parse variable configuration {var} = {config}")
-                self._vars[var] = generator
+        self._context = None
+        self._genContext = _ValueRandomUniformInt(0, 2**64)
 
     def query(self):
         """Return next query to execute.
@@ -140,10 +225,24 @@ class QueryFactory:
         if not self._vars:
             return self._txt
         else:
+            # All template substitutions are generated within the same query context
+            # to ensure integrity of the generated intervas.
+            context = self._nextContext()
             values = {}
             for var, generator in self._vars.items():
-                values[var] = generator()
+                values[var] = generator(context)
             return self._txt.format(**values)
+
+    def _nextContext(self):
+        """Make up to 2 attempts to generate a unique context."""
+        attempts = 0
+        while attempts < 2:
+            attempts += 1
+            context = self._genContext()
+            if context != self._context:
+                self._context = context
+                return self._context
+        raise RuntimeError("Exceeded the number of allowed attempts to generate a new contex")
 
 
 class Config:

@@ -47,18 +47,27 @@ queries:
         WHERE objectId = {objectId}
       variables:
         objectId:
-          path: /path/to/file.txt
-          mode: random
+          file_source:
+            path: /home/gapon/development/qserv-perf-tests/datasets/kpm50/one_object_per_chunk.txt
+            mode: random
     q2:
       template: >
         SELECT psRa, psDecl, psRaErr, psDeclErr, uPsFlux, uPsFluxErr, uKronFlux
         FROM Object
-        WHERE scisql_s2PtInBox(psRa, psDecl, {raMin}, {declMin}, {raMin}+{raDist}, {declMin}+{declDist})=1
+        WHERE scisql_s2PtInBox(psRa, psDecl, {ra_begin}, {decl_begin}, {ra_end}, {decl_end})=1
       variables:
-        raMin: {distribution: uniform, min: 0, max: 350}
-        declMin: {distribution: uniform, min: -87, max: 45}
-        raDist: {distribution: uniform, min: 0.01, max: 0.2}
-        declDist: {distribution: uniform, min: 0.01, max: 0.2}
+        # The random interval generator will yeld two variables based on the name of the
+        # variable 'ra':
+        #   'ra_begin' = begin
+        #   'ra_end'   = begin + length
+        ra:
+          random_interval:
+            begin:  {distribution: uniform, min: 0.10, max: 359.70}
+            length: {distribution: uniform, min: 0.01, max:   0.20}
+        decl:
+          random_interval:
+            begin:  {distribution: uniform, min: -89.70, max: 89.7}
+            length: {distribution: uniform, min:   0.01, max:  0.2}
     q3:
       template: >
         SELECT o.objectId  AS o_objectId,
@@ -70,13 +79,17 @@ queries:
                s.psFlux    AS s_psFlux,
                s.psFluxErr AS s_psFluxErr
         FROM Object o, Source s
-        WHERE scisql_s2PtInBox(o.psRa, o.psDecl, {raMin}, {declMin}, {raMin}+{raDist}, {declMin}+{declDist})=1
+        WHERE scisql_s2PtInBox(o.psRa, o.psDecl, {ra_begin}, {decl_begin}, {ra_end}, {decl_end})=1
           AND o.objectId = s.objectId
       variables:
-        raMin: {distribution: uniform, min: 0, max: 350}
-        declMin: {distribution: uniform, min: -87, max: 45}
-        raDist: {distribution: uniform, min: 0.01, max: 0.2}
-        declDist: {distribution: uniform, min: 0.01, max: 0.2}
+        ra:
+          random_interval:
+            begin:  {distribution: uniform, min: 0.10, max: 359.70}
+            length: {distribution: uniform, min: 0.01, max:   0.20}
+        decl:
+          random_interval:
+            begin:  {distribution: uniform, min: -89.70, max: 89.7}
+            length: {distribution: uniform, min:   0.01, max:  0.2}
 
   FTSObj:
     #q1: "SELECT COUNT(*) FROM Object WHERE y_instFlux > 0.05"
@@ -148,10 +161,14 @@ queries:
       template: >
         SELECT COUNT(*)
         FROM Object o1, Object o2
-        WHERE scisql_s2PtInBox(o1.psRa, o1.psDecl, %f, %f, %f, %f)=1
+        WHERE scisql_s2PtInBox(o1.psRa, o1.psDecl, {ra_begin}, {decl_begin}, {ra_end}, {decl_end})=1
           AND scisql_angSep(o1.psRa, o1.psDecl, o2.psRa, o2.psDecl) < 0.015
       variables:
-        raMin: {distribution: uniform, min: 0, max: 340}
-        declMin: {distribution: uniform, min: -87, max: 40}
-        raDist: {distribution: uniform, min: 8, max: 12}
-        declDist: {distribution: uniform, min: 8, max: 12}
+        ra:
+          random_interval:
+            begin:  {distribution: uniform, min: 0.10, max: 359.70}
+            length: {distribution: uniform, min: 0.01, max:   0.20}
+        decl:
+          random_interval:
+            begin:  {distribution: uniform, min: -89.70, max: 89.7}
+            length: {distribution: uniform, min:   0.01, max:  0.2}
